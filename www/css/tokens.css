@@ -1,0 +1,20 @@
+/* ORBIS: tokens de diseño. Contraste verificado en cada par texto/fondo (WCAG AA >= 4.5:1). */
+:root {
+  --fondo: #0B1220;
+  --superficie: #131D2E;
+  --superficie-alta: #1B2940;
+  --texto: #EAF2FB;
+  --texto-suave: #B5C2D6;
+  --acento: #5EEAD4;
+  --acento-texto: #04201C;
+  --borde: #33445F;
+  --ok: #86EFAC;
+  --aviso: #FCD34D;
+  --error: #FCA5A5;
+  --radio: 16px;
+  --radio-pequeno: 10px;
+  --espacio: 16px;
+  --toque: 56px;
+  --fuente: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --transicion: 180ms ease;
+}
