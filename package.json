@@ -1,0 +1,25 @@
+{
+  "name": "orbis-app-movil",
+  "version": "0.1.0",
+  "description": "ORBIS: aplicación móvil de asistencia (Capacitor)",
+  "scripts": {
+    "web": "python -m http.server 8090 --bind 127.0.0.1 --directory www",
+    "test": "playwright test",
+    "cap:sync": "cap sync android",
+    "cap:open": "cap open android",
+    "android:debug": "cap sync android && cd android && gradlew assembleDebug"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "UNLICENSED",
+  "dependencies": {
+    "@capacitor-community/text-to-speech": "8.0.2",
+    "@capacitor/android": "8.6.0",
+    "@capacitor/core": "8.6.0"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "8.6.0",
+    "@playwright/test": "1.49.1"
+  },
+  "private": true
+}

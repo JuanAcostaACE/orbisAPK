@@ -1,0 +1,12 @@
+{
+  "appId": "com.orbis.app",
+  "appName": "ORBIS",
+  "webDir": "www",
+  "server": {
+    "androidScheme": "https"
+  },
+  "android": {
+    "allowMixedContent": false,
+    "captureInput": true
+  }
+}
