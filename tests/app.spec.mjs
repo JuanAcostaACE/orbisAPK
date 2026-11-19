@@ -4,9 +4,25 @@ import { test, expect } from "@playwright/test";
 const CORS = {
   "Access-Control-Allow-Origin": "http://localhost:8090",
   "Access-Control-Allow-Credentials": "true",
-  "Access-Control-Allow-Headers": "Content-Type, X-XSRF-TOKEN",
+  "Access-Control-Allow-Headers": "Content-Type, X-XSRF-TOKEN, Authorization",
   "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
 };
+
+// Token de prueba del backend simulado (no es un secreto real). Debe verse solo en la cabecera Authorization.
+const TOKEN_PRUEBA = "tok-prueba-8caracteres-0123456789";
+
+// Inicio de sesión con el flujo de token (POST /auth/token + GET /auth/token/yo simulados).
+async function iniciarSesionSimulada(page) {
+  await page.route("http://localhost:8080/auth/token", (r) =>
+    r.fulfill({ status: 200, headers: CORS, contentType: "application/json", body: JSON.stringify({ accessToken: TOKEN_PRUEBA, tokenType: "Bearer", expiresIn: 28800, correo: "ana@test.com", nombre: "Ana" }) }));
+  await page.route("http://localhost:8080/auth/token/yo", (r) =>
+    r.fulfill({ status: 200, headers: CORS, contentType: "application/json", body: JSON.stringify({ correo: "ana@test.com" }) }));
+  await pantalla(page);
+  await page.locator("#correo").fill("ana@test.com");
+  await page.locator("#contrasena").fill("clave-segura-1");
+  await page.getByRole("button", { name: "Entrar" }).click();
+  await expect(page.locator("h1")).toHaveText("Hola");
+}
 
 // Espía de voz: registra cada utterance y permite comprobar cancelaciones.
 // speechSynthesis es una propiedad de solo lectura en el navegador: se redefine con defineProperty.
@@ -62,22 +78,14 @@ test.describe("acceso", () => {
   });
 
   test("inicio de sesión correcto contra backend simulado", async ({ page }) => {
-    await page.route("http://localhost:8080/auth/login", (r) =>
-      r.fulfill({ status: 200, headers: CORS, contentType: "application/json", body: JSON.stringify({ correo: "ana@test.com", mensaje: "Login exitoso" }) }));
-    await page.route("http://localhost:8080/auth/me", (r) =>
-      r.fulfill({ status: 200, headers: CORS, contentType: "application/json", body: JSON.stringify({ correo: "ana@test.com" }) }));
-    await pantalla(page);
-    await page.locator("#correo").fill("ana@test.com");
-    await page.locator("#contrasena").fill("clave-segura-1");
-    await page.getByRole("button", { name: "Entrar" }).click();
-    await expect(page.locator("h1")).toHaveText("Hola");
+    await iniciarSesionSimulada(page);
     await expect(page.locator("#barra")).toBeVisible();
     await expect(page.locator("#estado-conexion")).toHaveText("Conectado");
   });
 
   test("credenciales incorrectas muestran un mensaje comprensible", async ({ page }) => {
-    await page.route("http://localhost:8080/auth/login", (r) =>
-      r.fulfill({ status: 401, headers: CORS, contentType: "application/json", body: "{}" }));
+    await page.route("http://localhost:8080/auth/token", (r) =>
+      r.fulfill({ status: 401, headers: CORS, contentType: "application/json", body: JSON.stringify({ error: "CREDENCIALES_INCORRECTAS" }) }));
     await pantalla(page);
     await page.locator("#correo").fill("ana@test.com");
     await page.locator("#contrasena").fill("mal");
@@ -95,13 +103,12 @@ test.describe("acceso", () => {
     await expect(page.locator("h1")).toHaveText("Iniciar sesión");
   });
 
+  // Adaptada al flujo de token: antes simulaba una cookie (/auth/me). Ahora el 401 llega en una llamada autenticada.
   test("sesión expirada vuelve al acceso con aviso", async ({ page }) => {
-    await page.addInitScript(() => {
-      localStorage.setItem("orbis.estado.v1", JSON.stringify({ modo: "conectado", correo: "ana@test.com", capturas: [] }));
-    });
-    await page.route("http://localhost:8080/auth/me", (r) =>
+    await page.route("http://localhost:8080/api/v1/eventos*", (r) =>
       r.fulfill({ status: 401, headers: CORS, contentType: "application/json", body: "{}" }));
-    await page.goto("/index.html");
+    await iniciarSesionSimulada(page);
+    await page.evaluate(() => { location.hash = "#/historial"; });
     await expect(page.locator("h1")).toHaveText("Iniciar sesión");
     await expect(page.locator("#anuncios")).toContainText("Tu sesión ha caducado");
   });
@@ -178,16 +185,17 @@ test.describe("modo demostración", () => {
 });
 
 test.describe("historial conectado", () => {
+  // Adaptada al flujo de token: la sesión se inicia en la app y el historial debe enviar el Bearer.
   test("lista eventos reales del backend simulado", async ({ page }) => {
-    await page.addInitScript(() => {
-      localStorage.setItem("orbis.estado.v1", JSON.stringify({ modo: "conectado", correo: "ana@test.com", capturas: [] }));
+    let cabeceraAutorizacion = null;
+    await page.route("http://localhost:8080/api/v1/eventos*", (r) => {
+      cabeceraAutorizacion = r.request().headers()["authorization"] ?? null;
+      return r.fulfill({ status: 200, headers: CORS, contentType: "application/json", body: JSON.stringify({ contenido: [{ id: 1, modo: "PASIVO", distanciaCm: 42, fechaHora: "2026-11-17T10:00:00" }], pagina: 0 }) });
     });
-    await page.route("http://localhost:8080/auth/me", (r) =>
-      r.fulfill({ status: 200, headers: CORS, contentType: "application/json", body: JSON.stringify({ correo: "ana@test.com" }) }));
-    await page.route("http://localhost:8080/api/v1/eventos*", (r) =>
-      r.fulfill({ status: 200, headers: CORS, contentType: "application/json", body: JSON.stringify({ contenido: [{ id: 1, modo: "PASIVO", distanciaCm: 42, fechaHora: "2026-11-17T10:00:00" }], pagina: 0 }) }));
-    await page.goto("/index.html#/historial");
+    await iniciarSesionSimulada(page);
+    await page.evaluate(() => { location.hash = "#/historial"; });
     await expect(page.getByText("Evento PASIVO: 42 cm.")).toBeVisible();
+    expect(cabeceraAutorizacion).toBe(`Bearer ${TOKEN_PRUEBA}`);
   });
 });
 

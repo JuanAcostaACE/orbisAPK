@@ -2,6 +2,10 @@
 // Endpoints inexistentes (lista de dispositivos, descripción de capturas, invitaciones de auxiliar)
 // NO se llaman: sus pantallas usan adaptadores identificados en js/adaptadores.js.
 import { API_BASE } from "./config.js";
+import { tokenActual, borrarToken } from "./sesion.js";
+
+// Se emite cuando un token que estaba en uso deja de valer (401). app.js lleva a la pantalla de acceso.
+export const EVENTO_SESION_CADUCADA = "orbis.sesion-caducada";
 
 export class ErrorApi extends Error {
   constructor(status, codigo, mensaje) {
@@ -37,15 +41,19 @@ function cabeceraAntiCsrf(metodo) {
   return par ? { "X-XSRF-TOKEN": decodeURIComponent(par.split("=")[1]) } : {};
 }
 
-async function peticion(ruta, { metodo = "GET", cuerpo, esLogin = false } = {}) {
+// esLogin: el login no envía token. sinAvisoSesion: el llamador gestiona el 401 (no se emite el evento).
+async function peticion(ruta, { metodo = "GET", cuerpo, esLogin = false, sinAvisoSesion = false } = {}) {
+  const token = esLogin ? null : tokenActual();
   let respuesta;
   try {
     respuesta = await fetch(API_BASE + ruta, {
       method: metodo,
+      // Se conserva credentials: "include" para el panel web (cookies y CSRF).
       credentials: "include",
       headers: {
         Accept: "application/json",
         ...(cuerpo !== undefined ? { "Content-Type": "application/json" } : {}),
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
         ...cabeceraAntiCsrf(metodo),
       },
       body: cuerpo !== undefined ? JSON.stringify(cuerpo) : undefined,
@@ -56,6 +64,11 @@ async function peticion(ruta, { metodo = "GET", cuerpo, esLogin = false } = {}) 
 
   if (respuesta.status === 401) {
     if (esLogin) throw new ErrorApi(401, "CREDENCIALES", MENSAJES.CREDENCIALES);
+    // El token ya no sirve: se borra antes de avisar. Un 401 sin token no es una sesión caducada.
+    if (token) {
+      await borrarToken();
+      if (!sinAvisoSesion) window.dispatchEvent(new Event(EVENTO_SESION_CADUCADA));
+    }
     throw new ErrorApi(401, "SESION_EXPIRADA", MENSAJES.SESION_EXPIRADA);
   }
   if (respuesta.status === 429) {
@@ -80,12 +93,19 @@ async function peticion(ruta, { metodo = "GET", cuerpo, esLogin = false } = {}) 
 }
 
 export const auth = {
+  // App móvil (Android y navegador de pruebas): token de acceso en la cabecera Authorization.
+  // Respuesta: { accessToken, tokenType, expiresIn, correo, nombre }. 401 = CREDENCIALES_INCORRECTAS.
+  loginMovil: (correo, contrasena) =>
+    peticion("/auth/token", { metodo: "POST", cuerpo: { correo, contrasena }, esLogin: true }),
+  yo: () => peticion("/auth/token/yo", { sinAvisoSesion: true }),
+  logoutMovil: () => peticion("/auth/token/logout", { metodo: "POST", sinAvisoSesion: true }),
+  // Panel web: sesión por cookies (se mantiene como respaldo).
   login: (correo, contrasena) =>
     peticion("/auth/login", { metodo: "POST", cuerpo: { correo, contrasena }, esLogin: true }),
   registro: (nombre, correo, contrasena) =>
     peticion("/auth/registro", { metodo: "POST", cuerpo: { nombre, correo, contrasena } }),
-  logout: () => peticion("/auth/logout", { metodo: "POST" }),
-  me: () => peticion("/auth/me"),
+  logout: () => peticion("/auth/logout", { metodo: "POST", sinAvisoSesion: true }),
+  me: () => peticion("/auth/me", { sinAvisoSesion: true }),
 };
 
 export const eventos = {

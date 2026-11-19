@@ -4,6 +4,7 @@ import { anunciar } from "../a11y.js";
 import { decir, hayVoz } from "../voz.js";
 import { el, boton } from "../componentes.js";
 import { auth } from "../api.js";
+import { tokenActual, borrarToken } from "../sesion.js";
 
 export function renderAjustes(raiz, ctx) {
   const estado = cargar();
@@ -37,13 +38,11 @@ export function renderAjustes(raiz, ctx) {
 
   const salir = boton("Cerrar sesión", { variante: "peligro", etiqueta: "Cerrar sesión" });
   salir.addEventListener("click", async () => {
-    if (estado.modo === "conectado") {
-      try {
-        await auth.logout();
-      } catch {
-        // Aunque falle la red, la sesión local se borra igualmente.
-      }
+    if (tokenActual()) {
+      // Revoca el token en el backend. Si falla la red, el token se borra igualmente en el dispositivo.
+      await auth.logoutMovil().catch(() => {});
     }
+    await borrarToken();
     cerrarSesion();
     anunciar("Sesión cerrada.");
     ctx.ir("#/login");

@@ -1,5 +1,6 @@
 // Pantallas de acceso: inicio de sesión y registro.
 import { auth, ErrorApi } from "../api.js";
+import { guardarToken, borrarToken } from "../sesion.js";
 import { actualizar } from "../store.js";
 import { anunciar } from "../a11y.js";
 import { el, campo, boton, mensajeError, cargando } from "../componentes.js";
@@ -39,6 +40,7 @@ export function renderLogin(raiz, ctx) {
   );
 
   const aviso = el("div");
+  if (ctx.aviso) aviso.append(el("p", { className: "aviso-sesion", texto: ctx.aviso }));
   const correo = campo({ id: "correo", etiqueta: "Correo electrónico", tipo: "email", autocomplete: "email" });
   const contrasena = campoContrasena("contrasena", "Contraseña", "current-password");
   const enviar = boton("Entrar", { tipo: "submit" });
@@ -62,9 +64,21 @@ export function renderLogin(raiz, ctx) {
     enviar.disabled = true;
     aviso.replaceChildren(cargando("Entrando…"));
     try {
-      await auth.login(correo.entrada.value.trim(), contrasena.entrada.value);
-      const sesion = await auth.me().catch(() => null);
-      actualizar({ modo: "conectado", correo: sesion?.correo ?? correo.entrada.value.trim(), nombre: null });
+      const correoLimpio = correo.entrada.value.trim();
+      // El backend devuelve 401 CREDENCIALES_INCORRECTAS: api.js lo traduce a "Correo o contraseña incorrectos.".
+      const respuesta = await auth.loginMovil(correoLimpio, contrasena.entrada.value);
+      if (typeof respuesta?.accessToken !== "string" || !respuesta.accessToken) {
+        throw new Error("Respuesta de inicio de sesión no válida.");
+      }
+      await guardarToken(respuesta.accessToken);
+      let yo;
+      try {
+        yo = await auth.yo();
+      } catch (errorYo) {
+        await borrarToken();
+        throw errorYo;
+      }
+      actualizar({ modo: "conectado", correo: yo?.correo ?? correoLimpio, nombre: null });
       anunciar("Sesión iniciada.");
       ctx.ir("#/inicio");
     } catch (e) {
