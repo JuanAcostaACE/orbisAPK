@@ -7,12 +7,14 @@
     "test": "playwright test",
     "cap:sync": "cap sync android",
     "cap:open": "cap open android",
-    "android:debug": "cap sync android && cd android && gradlew assembleDebug"
+    "android:debug": "cap sync android && cd android && gradlew assembleDebug",
+    "vendor:secure-storage": "node scripts/vendor-secure-storage.mjs"
   },
   "keywords": [],
   "author": "",
   "license": "UNLICENSED",
   "dependencies": {
+    "@aparajita/capacitor-secure-storage": "8.0.1",
     "@capacitor-community/text-to-speech": "8.0.2",
     "@capacitor/android": "8.6.0",
     "@capacitor/core": "8.6.0"

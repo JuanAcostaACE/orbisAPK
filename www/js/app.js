@@ -1,6 +1,7 @@
 // Arranque y enrutador. Rutas por hash: funcionan igual en navegador y dentro de Capacitor.
 import { cargar, actualizar, cerrarSesion } from "./store.js";
-import { auth, ErrorApi } from "./api.js";
+import { auth, ErrorApi, EVENTO_SESION_CADUCADA } from "./api.js";
+import { cargarToken } from "./sesion.js";
 import { anunciar, anunciarTitulo, enfocarTitulo, estadoConexion } from "./a11y.js";
 import { renderLogin, renderRegistro } from "./pantallas/acceso.js";
 import { renderInicio } from "./pantallas/inicio.js";
@@ -27,6 +28,15 @@ const raiz = document.getElementById("contenido");
 const barra = document.getElementById("barra");
 let limpiezas = [];
 let generacion = 0; // evita pintar una pantalla antigua si el usuario navega deprisa
+let avisoAcceso = null; // mensaje que se muestra una vez en la pantalla de acceso
+const AVISO_CADUCADA = "Tu sesión ha caducado. Inicia sesión de nuevo.";
+
+function irAAcceso(aviso) {
+  avisoAcceso = aviso;
+  cerrarSesion();
+  anunciar(aviso, { urgente: true });
+  ir("#/login");
+}
 
 function leerRuta() {
   const partes = (location.hash || "#/").replace(/^#\/?/, "").split("/");
@@ -91,30 +101,44 @@ async function navegar() {
   actualizarNavegacion(estado, nombre);
   estadoConexion(textoConexion(estado));
 
-  const contexto = { ir, alSalir, estado };
+  const aviso = avisoAcceso;
+  avisoAcceso = null;
+  const contexto = { ir, alSalir, estado, aviso };
   ruta.render(raiz, contexto, arg);
   if (mi !== generacion) return;
   enfocarTitulo(raiz);
   anunciarTitulo(ruta.titulo);
 }
 
-// Al arrancar, un modo "conectado" se verifica contra el backend. Una sesión caducada vuelve al acceso.
+// Al arrancar: si hay token guardado (Android), se verifica con /auth/token/yo.
+// Sin token (p. ej. recarga en el navegador de pruebas) la sesión no se recupera: hay que iniciar sesión de nuevo.
 async function restaurarSesion() {
   const estado = cargar();
-  if (estado.modo !== "conectado") return;
+  const token = await cargarToken();
+  if (!token) {
+    if (estado.modo === "conectado") {
+      irAAcceso("Inicia sesión de nuevo para continuar.");
+    }
+    return;
+  }
   try {
-    const yo = await auth.me();
-    actualizar({ correo: yo?.correo ?? estado.correo });
+    const yo = await auth.yo();
+    actualizar({ modo: "conectado", correo: yo?.correo ?? estado.correo });
   } catch (e) {
     if (e instanceof ErrorApi && e.codigo === "SESION_EXPIRADA") {
+      // El token ya se ha borrado en api.js al recibir el 401.
+      avisoAcceso = AVISO_CADUCADA;
       cerrarSesion();
-      anunciar("Tu sesión ha caducado. Inicia sesión de nuevo.", { urgente: true });
+      anunciar(AVISO_CADUCADA, { urgente: true });
     }
     // Sin red no se cierra la sesión: la app puede mostrar datos locales.
   }
 }
 
 window.addEventListener("hashchange", navegar);
+
+// Cualquier llamada autenticada que reciba 401 con un token en uso lleva a la pantalla de acceso con aviso.
+window.addEventListener(EVENTO_SESION_CADUCADA, () => irAAcceso(AVISO_CADUCADA));
 
 restaurarSesion().finally(() => {
   if (!location.hash) location.hash = "#/inicio";
