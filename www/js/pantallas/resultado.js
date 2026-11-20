@@ -8,7 +8,7 @@ import { el, insignia, boton, vacio, cargando } from "../componentes.js";
 import { imagenesEnMemoria, AVISO_SIMULADO, AVISO_SIN_ALERTAS } from "../adaptadores.js";
 import { capturas, ErrorApi } from "../api.js";
 import {
-  AVISO_REAL, INSIGNIA_REAL, MENSAJE_TARDANZA, analizarReal, sondear, sondearLocal, uuidV4,
+  AVISO_REAL, INSIGNIA_REAL, MENSAJE_TARDANZA, MENSAJE_SIN_RED, analizarReal, sondear, sondearLocal, uuidV4,
   fotografiasEnMemoria, esTerminal,
 } from "../analisis.js";
 
@@ -58,7 +58,7 @@ export function renderResultado(raiz, ctx, id) {
   const contenedorVoz = el("p", { className: "etiqueta", "aria-live": "polite", id: "estado-voz" });
   const imagenUrl = imagenesEnMemoria.get(id);
 
-  const escuchar = boton("Escuchar de nuevo", { etiqueta: "Escuchar la descripción de nuevo" });
+  const escuchar = boton("Repetir descripción", { etiqueta: "Repetir la descripción en voz alta" });
   const parar = boton("Detener", { variante: "secundario", etiqueta: "Detener la lectura" });
   escuchar.addEventListener("click", () => {
     const texto = actual()?.descripcion;
@@ -101,6 +101,9 @@ export function renderResultado(raiz, ctx, id) {
     }
     if (c.estado !== "DESCRITA") {
       const nodos = [cargando(c.estado === "PREPARANDO" ? "Enviando la fotografía…" : "Analizando la fotografía…")];
+      if (c.sinRed && !c.tardando) {
+        nodos.push(el("p", { className: "tarjeta", role: "status", texto: MENSAJE_SIN_RED }));
+      }
       if (c.tardando) {
         nodos.push(
           el("div", { className: "mensaje-error", role: "alert" }, [el("p", { texto: c.aviso ?? MENSAJE_TARDANZA })]),
@@ -168,6 +171,9 @@ export function renderResultado(raiz, ctx, id) {
 
   function pintar() {
     const c = actual();
+    const hayTexto = Boolean(c?.estado === "DESCRITA" && c.descripcion);
+    escuchar.disabled = !hayTexto;
+    contenedorDescripcion.setAttribute("aria-busy", c && !esTerminal(c.estado) ? "true" : "false");
     if (!c) {
       contenedorEstado.replaceChildren();
       contenedorDescripcion.replaceChildren(cargando("Consultando el resultado…"));
@@ -190,8 +196,11 @@ export function renderResultado(raiz, ctx, id) {
     contenedorEstado,
     imagen,
     contenedorDescripcion,
-    el("div", { className: "tarjeta" }, [contenedorVoz, escuchar, parar]),
-    el("p", {}, [el("a", { href: "#/inicio", texto: "Volver al inicio" })]),
+    el("section", { className: "tarjeta", "aria-labelledby": "t-voz" }, [
+      el("h2", { id: "t-voz", texto: "Voz" }),
+      contenedorVoz, escuchar, parar,
+    ]),
+    el("a", { className: "boton secundario", href: "#/inicio", texto: "Volver al inicio" }),
   );
   pintar();
 
@@ -224,7 +233,7 @@ export function renderResultado(raiz, ctx, id) {
         if (esTerminal(remota.estado)) leida = true; // un resultado ya terminado no se lee solo al abrirlo
         pintar();
         if (!esTerminal(remota.estado)) {
-          sondear(id, { alCambiar: (x) => { remota = desdeServidor(x); }, senal: cancelar.signal })
+          sondear(id, { alCambiar: (x) => { remota = { ...desdeServidor(x), sinRed: false }; }, alFalloRed: (_e, n) => { if (n >= 2 && remota) remota = { ...remota, sinRed: true }; }, senal: cancelar.signal })
             .then(({ tiempoAgotado }) => {
               if (tiempoAgotado && remota) remota = { ...remota, tardando: true, aviso: MENSAJE_TARDANZA };
             })
@@ -238,7 +247,8 @@ export function renderResultado(raiz, ctx, id) {
         if (e instanceof ErrorApi && e.status === 404) noEncontrado(raiz);
         else {
           raiz.replaceChildren(vacio("No se pudo cargar el resultado", e?.message ?? "Inténtalo de nuevo.", [
-            el("a", { className: "boton", href: "#/historial", texto: "Volver al historial" }),
+            boton("Reintentar", { onclick: () => ctx.ir(`#/resultado/${id}`) }),
+            el("a", { className: "boton secundario", href: "#/historial", texto: "Volver al historial" }),
           ]));
         }
       },
