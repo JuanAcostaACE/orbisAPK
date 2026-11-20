@@ -154,7 +154,7 @@ test.describe("modo demostración", () => {
     await expect.poll(() => page.evaluate(() => window.__voz.cancelaciones)).toBeGreaterThan(0);
   });
 
-  test("voz: 'Escuchar de nuevo' interrumpe con prioridad alta", async ({ page }) => {
+  test("voz: Repetir descripción interrumpe con prioridad alta", async ({ page }) => {
     await page.addInitScript(ESPIA_VOZ);
     await page.goto("/index.html#/login");
     await page.getByRole("button", { name: /modo demostración/ }).click();
@@ -164,7 +164,7 @@ test.describe("modo demostración", () => {
     });
     await expect(page.locator(".insignia", { hasText: "Descripción lista" })).toBeVisible({ timeout: 10_000 });
     const antes = await page.evaluate(() => window.__voz.cancelaciones);
-    await page.getByRole("button", { name: "Escuchar la descripción de nuevo" }).click();
+    await page.getByRole("button", { name: "Repetir la descripción en voz alta" }).click();
     await expect.poll(() => page.evaluate(() => window.__voz.cancelaciones)).toBeGreaterThan(antes);
   });
 

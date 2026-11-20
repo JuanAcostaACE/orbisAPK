@@ -5,6 +5,7 @@ import { actualizar, cargar } from "./store.js";
 import { prepararFotografia } from "./imagen.js";
 import { INTERVALO_SONDEO_MS, TIEMPO_MAX_ANALISIS_MS } from "./config.js";
 
+export const MENSAJE_SIN_RED = "Sin conexión con ORBIS. Seguiré intentándolo; revisa tu Internet.";
 export const MENSAJE_TARDANZA = "El análisis está tardando más de lo normal. Puedes volver a intentarlo.";
 export const AVISO_REAL = "Detecta objetos de 80 categorías. No mide distancias ni garantiza que el camino esté libre.";
 export const INSIGNIA_REAL = "Análisis real (YOLOX-Nano)";
@@ -52,19 +53,23 @@ function dormir(ms, senal) {
 // Consulta el estado cada INTERVALO hasta DESCRITA/FALLIDA o hasta agotar TIEMPO_MAX.
 // Devuelve { tiempoAgotado: false, captura } o { tiempoAgotado: true, captura } (la última conocida, sin inventar nada).
 // Una sesión caducada (401) o un 404 detienen el sondeo lanzando el error. Fallos de red/5xx se reintentan.
-export async function sondear(id, { alCambiar, senal, intervalo = INTERVALO_SONDEO_MS, maximo = TIEMPO_MAX_ANALISIS_MS } = {}) {
+export async function sondear(id, { alCambiar, alFalloRed, senal, intervalo = INTERVALO_SONDEO_MS, maximo = TIEMPO_MAX_ANALISIS_MS } = {}) {
   const inicio = Date.now();
   let ultima = null;
+  let fallosSeguidos = 0;
   while (Date.now() - inicio < maximo) {
     await dormir(intervalo, senal);
     if (senal?.aborted) return { tiempoAgotado: false, cancelado: true, captura: ultima };
     try {
       const r = await capturas.estado(id);
       ultima = r;
+      fallosSeguidos = 0;
       alCambiar?.(r);
       if (esTerminal(r.estado)) return { tiempoAgotado: false, captura: r };
     } catch (e) {
       if (e instanceof ErrorApi && (e.status === 401 || (e.status >= 400 && e.status < 500 && e.status !== 429))) throw e;
+      fallosSeguidos += 1;
+      alFalloRed?.(e, fallosSeguidos);
     }
   }
   return { tiempoAgotado: true, captura: ultima };
@@ -72,12 +77,14 @@ export async function sondear(id, { alCambiar, senal, intervalo = INTERVALO_SOND
 
 // Sondea una captura local y vuelca el progreso en el estado local.
 export async function sondearLocal(id) {
-  guardar(id, { tardando: false });
+  guardar(id, { tardando: false, sinRed: false });
   try {
     const { tiempoAgotado, captura } = await sondear(id, {
-      alCambiar: (r) => guardar(id, { ...metadatos(r), tardando: false, aviso: null }),
+      alCambiar: (r) => guardar(id, { ...metadatos(r), tardando: false, sinRed: false, aviso: null }),
+      // Tras 2 fallos seguidos de red/servidor se avisa; el sondeo sigue hasta agotar el tiempo.
+      alFalloRed: (_e, n) => { if (n >= 2) guardar(id, { sinRed: true }); },
     });
-    if (tiempoAgotado) guardar(id, { tardando: true, aviso: MENSAJE_TARDANZA });
+    if (tiempoAgotado) guardar(id, { tardando: true, aviso: cargar().capturas.find((c) => c.id === id)?.sinRed ? MENSAJE_SIN_RED : MENSAJE_TARDANZA });
     return captura;
   } catch (e) {
     if (e instanceof ErrorApi && e.status === 401) return null; // api.js ya avisó de la sesión caducada
