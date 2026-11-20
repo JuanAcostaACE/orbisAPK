@@ -5,8 +5,10 @@ import { el, insignia, boton, enlaceBoton } from "../componentes.js";
 import {
   crearCapturaPrueba, analizarSimulado, estadoBaston, imagenesEnMemoria, AVISO_SIMULADO,
 } from "../adaptadores.js";
+import { analizarReal, uuidV4, INSIGNIA_REAL } from "../analisis.js";
 
 const ETIQUETA_ESTADO = {
+  PREPARANDO: ["Enviando la fotografía", "aviso"],
   RECIBIDA: ["Recibida", "neutra"],
   EN_PROCESO: ["Analizando", "aviso"],
   DESCRITA: ["Descrita", "ok"],
@@ -29,6 +31,16 @@ export function renderInicio(raiz, ctx) {
   entrada.addEventListener("change", () => {
     const archivo = entrada.files?.[0];
     if (!archivo) return;
+    if (cargar().modo === "conectado") {
+      // Análisis real en la nube. El input se vacía para poder elegir la misma foto otra vez.
+      const id = uuidV4();
+      imagenesEnMemoria.set(id, URL.createObjectURL(archivo));
+      anunciar("Fotografía recibida. Enviándola para analizar el entorno.");
+      analizarReal(archivo, id); // crea la captura local de forma síncrona y sigue en segundo plano
+      entrada.value = "";
+      ctx.ir(`#/resultado/${id}`);
+      return;
+    }
     const captura = crearCapturaPrueba(archivo.name);
     imagenesEnMemoria.set(captura.id, URL.createObjectURL(archivo));
     anunciar("Fotografía de prueba recibida. Analizando el entorno.");
@@ -56,8 +68,8 @@ export function renderInicio(raiz, ctx) {
     ultima
       ? el("div", {}, [
         el("p", {}, [insignia(ETIQUETA_ESTADO[ultima.estado]?.[0] ?? ultima.estado, ETIQUETA_ESTADO[ultima.estado]?.[1] ?? "neutra"),
-          ultima.simulado ? " " : null,
-          ultima.simulado ? insignia("Simulada", "demo") : null]),
+          " ",
+          ultima.simulado ? insignia("Simulada", "demo") : insignia(INSIGNIA_REAL, "neutra")]),
         el("p", { texto: ultima.descripcion ?? "Todavía sin descripción." }),
         enlaceBoton("Ver resultado", `#/resultado/${ultima.id}`, "secundario"),
       ])
@@ -76,7 +88,7 @@ export function renderInicio(raiz, ctx) {
     bloqueConexion,
     el("section", { "aria-labelledby": "t-accion" }, [
       el("h2", { id: "t-accion", texto: "Describir el entorno" }),
-      el("p", { texto: estado.modo === "demo" ? AVISO_SIMULADO : "Se usa una fotografía de prueba hasta que el bastón esté conectado." }),
+      el("p", { texto: estado.modo === "demo" ? AVISO_SIMULADO : "Elige una fotografía y ORBIS la analizará en la nube. Se reduce en tu teléfono antes de enviarla." }),
       accion,
       entrada,
     ]),

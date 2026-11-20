@@ -1,9 +1,11 @@
 // Historial: capturas locales (demostración y bastón) y, en modo conectado, eventos reales del backend.
 import { cargar } from "../store.js";
 import { el, insignia, cargando, mensajeError, vacio } from "../componentes.js";
-import { eventos, ErrorApi } from "../api.js";
+import { eventos, capturas, ErrorApi } from "../api.js";
+import { INSIGNIA_REAL } from "../analisis.js";
 
 const ESTADO = {
+  PREPARANDO: ["Enviando", "aviso"],
   RECIBIDA: ["Recibida", "neutra"],
   EN_PROCESO: ["Analizando", "aviso"],
   DESCRITA: ["Descrita", "ok"],
@@ -12,14 +14,21 @@ const ESTADO = {
 
 function filaCaptura(c) {
   const [texto, tipo] = ESTADO[c.estado] ?? [c.estado, "neutra"];
-  const fecha = new Date(c.creadaEn).toLocaleString("es-ES", { dateStyle: "medium", timeStyle: "short" });
+  const fecha = c.creadaEn ? new Date(c.creadaEn).toLocaleString("es-ES", { dateStyle: "medium", timeStyle: "short" }) : "Sin fecha";
+  const real = c.origen === "real";
+  const resumen = c.descripcion ?? (c.estado === "FALLIDA" ? "No se pudo analizar." : "Todavía sin descripción.");
   return el("li", {}, [
-    el("a", { href: `#/resultado/${c.id}`, "aria-label": `${fecha}. ${texto}. ${c.descripcion ?? "Sin descripción"}` }, [
+    el("a", { href: `#/resultado/${c.id}`, "aria-label": `${fecha}. ${texto}. ${resumen}` }, [
       el("p", { className: "etiqueta", texto: fecha }),
-      el("p", {}, [insignia(texto, tipo), " ", c.simulado ? insignia("Simulada", "demo") : null]),
-      el("p", { texto: c.descripcion ?? "Todavía sin descripción." }),
+      el("p", {}, [insignia(texto, tipo), " ", real ? insignia(INSIGNIA_REAL, "neutra") : c.simulado ? insignia("Simulada", "demo") : null]),
+      el("p", { texto: resumen }),
     ]),
   ]);
+}
+
+// Captura del servidor (contrato de GET /api/v1/dispositivos/capturas) -> forma de fila.
+function deServidor(s) {
+  return { id: s.captureId, estado: s.estado, descripcion: s.descripcion ?? null, creadaEn: s.recibidaEn, origen: "real", simulado: false };
 }
 
 function filaEvento(e) {
@@ -38,11 +47,28 @@ export function renderHistorial(raiz) {
   const estado = cargar();
   const locales = estado.capturas;
 
-  const bloqueLocal = locales.length
+  const listaLocal = () => (locales.length
     ? el("ul", { className: "lista", "aria-label": "Capturas guardadas" }, locales.map(filaCaptura))
     : vacio("Todavía no hay capturas", "Cuando describas el entorno, verás aquí cada resultado.", [
       el("a", { className: "boton", href: "#/inicio", texto: "Ir al inicio" }),
-    ]);
+    ]));
+  const bloqueLocal = el("div", {}, [estado.modo === "conectado" ? cargando("Cargando capturas…") : listaLocal()]);
+
+  // En modo conectado se intenta el listado del servidor. Si no existe (404/405) o falla, se muestran las locales sin alarmas.
+  if (estado.modo === "conectado") {
+    capturas.listar(0, 20).then(
+      (pagina) => {
+        const lista = Array.isArray(pagina?.contenido) ? pagina.contenido : null;
+        if (!lista) return bloqueLocal.replaceChildren(listaLocal());
+        bloqueLocal.replaceChildren(
+          lista.length
+            ? el("ul", { className: "lista", "aria-label": "Capturas analizadas en la nube" }, lista.map((x) => filaCaptura(deServidor(x))))
+            : listaLocal(),
+        );
+      },
+      () => bloqueLocal.replaceChildren(listaLocal()),
+    );
+  }
 
   const bloqueRemoto = el("section", { "aria-labelledby": "t-eventos" }, [
     el("h2", { id: "t-eventos", texto: "Eventos del bastón" }),

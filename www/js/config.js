@@ -4,3 +4,7 @@
 export const API_BASE = "https://orbisbackend-production.up.railway.app";
 
 export const LIMITE_CAPTURAS_LOCALES = 50;
+
+// Análisis real en la nube: sondeo del estado de una captura.
+export const INTERVALO_SONDEO_MS = 1500;
+export const TIEMPO_MAX_ANALISIS_MS = 30_000;

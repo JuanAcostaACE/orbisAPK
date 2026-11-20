@@ -7,7 +7,7 @@ const CORS = {
   "Access-Control-Allow-Headers": "Content-Type, X-XSRF-TOKEN, Authorization",
   "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
 };
-const URL_BACKEND = "http://localhost:8080";
+const URL_BACKEND = "https://orbisbackend-production.up.railway.app";
 const TOKEN = "tok-sesion-prueba-abcdef-0123456789";
 const RESPUESTA_TOKEN = { accessToken: TOKEN, tokenType: "Bearer", expiresIn: 28800, correo: "ana@test.com", nombre: "Ana" };
 
@@ -53,6 +53,7 @@ test.describe("token de acceso", () => {
       cabeceras.eventos = r.request().headers()["authorization"] ?? null;
       await r.fulfill(json(200, { contenido: [], pagina: 0 }));
     });
+    await page.route(/\/api\/v1\/dispositivos\/capturas(\?.*)?$/,(r) => r.fulfill(json(404, {})));
     await abrirAcceso(page);
     await escribirCredenciales(page);
     await expect(page.locator("h1")).toHaveText("Hola");
