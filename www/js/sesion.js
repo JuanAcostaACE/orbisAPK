@@ -21,7 +21,8 @@ export function esNativa() {
 async function almacen() {
   if (!almacenNativo) {
     const modulo = await import("../vendor/secure-storage/index.js");
-    almacenNativo = modulo.SecureStorage;
+    // Se envuelve: el proxy del plugin tiene un método "then" que el "await" intentaría llamar.
+    almacenNativo = { plugin: modulo.SecureStorage };
   }
   return almacenNativo;
 }
@@ -35,7 +36,7 @@ export function tokenActual() {
 export async function cargarToken() {
   if (!esNativa()) return tokenEnMemoria;
   try {
-    tokenEnMemoria = (await (await almacen()).getItem(CLAVE)) ?? null;
+    tokenEnMemoria = (await (await almacen()).plugin.getItem(CLAVE)) ?? null;
   } catch {
     tokenEnMemoria = null;
   }
@@ -45,7 +46,7 @@ export async function cargarToken() {
 // Lanza si el almacenamiento nativo falla: no se da por iniciada una sesión que no se ha guardado.
 export async function guardarToken(token) {
   if (esNativa()) {
-    await (await almacen()).setItem(CLAVE, token);
+    await (await almacen()).plugin.setItem(CLAVE, token);
   }
   tokenEnMemoria = token;
 }
@@ -56,7 +57,7 @@ export async function borrarToken() {
   tokenEnMemoria = null;
   if (!esNativa()) return;
   try {
-    await (await almacen()).removeItem(CLAVE);
+    await (await almacen()).plugin.removeItem(CLAVE);
   } catch {
     // Sin acción adicional: ver el comentario anterior.
   }
