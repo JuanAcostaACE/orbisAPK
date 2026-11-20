@@ -13,9 +13,12 @@ const TOKEN_PRUEBA = "tok-prueba-8caracteres-0123456789";
 
 // Inicio de sesión con el flujo de token (POST /auth/token + GET /auth/token/yo simulados).
 async function iniciarSesionSimulada(page) {
-  await page.route("http://localhost:8080/auth/token", (r) =>
+  // El listado de capturas aún puede no existir en el servidor: el historial debe degradar a lo local.
+  await page.route(/\/api\/v1\/dispositivos\/capturas(\?.*)?$/,(r) =>
+    r.fulfill({ status: 404, headers: CORS, contentType: "application/json", body: "{}" }));
+  await page.route("https://orbisbackend-production.up.railway.app/auth/token", (r) =>
     r.fulfill({ status: 200, headers: CORS, contentType: "application/json", body: JSON.stringify({ accessToken: TOKEN_PRUEBA, tokenType: "Bearer", expiresIn: 28800, correo: "ana@test.com", nombre: "Ana" }) }));
-  await page.route("http://localhost:8080/auth/token/yo", (r) =>
+  await page.route("https://orbisbackend-production.up.railway.app/auth/token/yo", (r) =>
     r.fulfill({ status: 200, headers: CORS, contentType: "application/json", body: JSON.stringify({ correo: "ana@test.com" }) }));
   await pantalla(page);
   await page.locator("#correo").fill("ana@test.com");
@@ -84,7 +87,7 @@ test.describe("acceso", () => {
   });
 
   test("credenciales incorrectas muestran un mensaje comprensible", async ({ page }) => {
-    await page.route("http://localhost:8080/auth/token", (r) =>
+    await page.route("https://orbisbackend-production.up.railway.app/auth/token", (r) =>
       r.fulfill({ status: 401, headers: CORS, contentType: "application/json", body: JSON.stringify({ error: "CREDENCIALES_INCORRECTAS" }) }));
     await pantalla(page);
     await page.locator("#correo").fill("ana@test.com");
@@ -94,7 +97,7 @@ test.describe("acceso", () => {
   });
 
   test("sin backend: error de conexión comprensible, no se inventa un éxito", async ({ page }) => {
-    await page.route("http://localhost:8080/**", (r) => r.abort("connectionrefused"));
+    await page.route("https://orbisbackend-production.up.railway.app/**", (r) => r.abort("connectionrefused"));
     await pantalla(page);
     await page.locator("#correo").fill("ana@test.com");
     await page.locator("#contrasena").fill("clave-segura-1");
@@ -105,7 +108,7 @@ test.describe("acceso", () => {
 
   // Adaptada al flujo de token: antes simulaba una cookie (/auth/me). Ahora el 401 llega en una llamada autenticada.
   test("sesión expirada vuelve al acceso con aviso", async ({ page }) => {
-    await page.route("http://localhost:8080/api/v1/eventos*", (r) =>
+    await page.route("https://orbisbackend-production.up.railway.app/api/v1/eventos*", (r) =>
       r.fulfill({ status: 401, headers: CORS, contentType: "application/json", body: "{}" }));
     await iniciarSesionSimulada(page);
     await page.evaluate(() => { location.hash = "#/historial"; });
@@ -188,7 +191,7 @@ test.describe("historial conectado", () => {
   // Adaptada al flujo de token: la sesión se inicia en la app y el historial debe enviar el Bearer.
   test("lista eventos reales del backend simulado", async ({ page }) => {
     let cabeceraAutorizacion = null;
-    await page.route("http://localhost:8080/api/v1/eventos*", (r) => {
+    await page.route("https://orbisbackend-production.up.railway.app/api/v1/eventos*", (r) => {
       cabeceraAutorizacion = r.request().headers()["authorization"] ?? null;
       return r.fulfill({ status: 200, headers: CORS, contentType: "application/json", body: JSON.stringify({ contenido: [{ id: 1, modo: "PASIVO", distanciaCm: 42, fechaHora: "2026-11-17T10:00:00" }], pagina: 0 }) });
     });

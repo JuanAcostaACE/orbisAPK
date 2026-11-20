@@ -25,11 +25,19 @@ const MENSAJES = {
   TIPO_NO_SOPORTADO: "El formato no es válido. Usa una fotografía JPEG.",
   IMAGEN_NO_VALIDA: "No pude leer la fotografía. Inténtalo de nuevo.",
   CAPTURA_CONFLICTO: "Esa captura ya existe con otro contenido.",
+  LIMITE_FOTOS: "Has enviado demasiadas fotografías seguidas. Espera un momento e inténtalo de nuevo.",
   ERROR_INTERNO: "ORBIS tiene un problema temporal. Inténtalo más tarde.",
+};
+
+const MENSAJE_POR_ESTADO = {
+  413: MENSAJES.IMAGEN_DEMASIADO_GRANDE,
+  415: MENSAJES.TIPO_NO_SOPORTADO,
+  422: MENSAJES.IMAGEN_NO_VALIDA,
 };
 
 function mensajePara(codigo, status) {
   if (MENSAJES[codigo]) return MENSAJES[codigo];
+  if (MENSAJE_POR_ESTADO[status]) return MENSAJE_POR_ESTADO[status];
   if (status >= 500) return MENSAJES.ERROR_INTERNO;
   return "No se pudo completar la acción. Inténtalo de nuevo.";
 }
@@ -42,7 +50,8 @@ function cabeceraAntiCsrf(metodo) {
 }
 
 // esLogin: el login no envía token. sinAvisoSesion: el llamador gestiona el 401 (no se emite el evento).
-async function peticion(ruta, { metodo = "GET", cuerpo, esLogin = false, sinAvisoSesion = false } = {}) {
+// binario: { blob, tipo, cabeceras } envía el cuerpo tal cual (sin JSON).
+async function peticion(ruta, { metodo = "GET", cuerpo, binario, esLogin = false, sinAvisoSesion = false } = {}) {
   const token = esLogin ? null : tokenActual();
   let respuesta;
   try {
@@ -53,10 +62,11 @@ async function peticion(ruta, { metodo = "GET", cuerpo, esLogin = false, sinAvis
       headers: {
         Accept: "application/json",
         ...(cuerpo !== undefined ? { "Content-Type": "application/json" } : {}),
+        ...(binario ? { "Content-Type": binario.tipo, ...binario.cabeceras } : {}),
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
         ...cabeceraAntiCsrf(metodo),
       },
-      body: cuerpo !== undefined ? JSON.stringify(cuerpo) : undefined,
+      body: binario ? binario.blob : cuerpo !== undefined ? JSON.stringify(cuerpo) : undefined,
     });
   } catch {
     throw new ErrorApi(0, "SIN_CONEXION", MENSAJES.SIN_CONEXION);
@@ -72,7 +82,7 @@ async function peticion(ruta, { metodo = "GET", cuerpo, esLogin = false, sinAvis
     throw new ErrorApi(401, "SESION_EXPIRADA", MENSAJES.SESION_EXPIRADA);
   }
   if (respuesta.status === 429) {
-    throw new ErrorApi(429, "DEMASIADOS_INTENTOS", MENSAJES.DEMASIADOS_INTENTOS);
+    throw new ErrorApi(429, "DEMASIADOS_INTENTOS", binario ? MENSAJES.LIMITE_FOTOS : MENSAJES.DEMASIADOS_INTENTOS);
   }
   if (!respuesta.ok) {
     let codigo = "ERROR";
@@ -120,6 +130,15 @@ export const dispositivos = {
 };
 
 export const capturas = {
-  // Solo devuelve el ESTADO de una captura. El backend todavía no devuelve la descripción.
+  // Sube una fotografía JPEG (ya reducida, máx. 512 KB). captureId: UUID v4. 202 = nueva, 200 = reintento idéntico.
+  subir: (blob, captureId) =>
+    peticion("/api/v1/dispositivos/capturas", {
+      metodo: "POST",
+      binario: { blob, tipo: "image/jpeg", cabeceras: { "X-Capture-Id": captureId } },
+    }),
+  // { captureId, estado, duplicada, descripcion, etiquetas, motivoFallo }
   estado: (captureId) => peticion(`/api/v1/dispositivos/capturas/${encodeURIComponent(captureId)}`),
+  // { contenido: [{ captureId, estado, descripcion, etiquetas, motivoFallo, recibidaEn }], ...paginación }
+  // Puede no existir todavía en el servidor (404/405): el historial degrada a las capturas locales.
+  listar: (pagina = 0, tamano = 20) => peticion(`/api/v1/dispositivos/capturas?page=${pagina}&size=${tamano}`),
 };
