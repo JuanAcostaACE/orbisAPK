@@ -3,4 +3,4 @@
 // cuando el propietario lo autorice (no se usa producción desde esta app).
 export const API_BASE = "http://localhost:8080";
 
-export const LIMITE_CAPTURAS_LOCALES = 50;
+export const LOCAL_CAPTURES_LIMIT = 50;

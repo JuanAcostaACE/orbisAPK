@@ -1,42 +1,42 @@
 // Estado local de la app. Solo guarda metadatos: nunca bytes de imagen ni contraseñas.
 // Todo acceso a localStorage va en try/catch: si el almacenamiento no está disponible, la app sigue.
-import { LIMITE_CAPTURAS_LOCALES } from "./config.js";
+import { LOCAL_CAPTURES_LIMIT } from "./config.js";
 
-const CLAVE = "orbis.estado.v1";
+const STORAGE_KEY = "orbis.state.v1";
 
-const POR_DEFECTO = Object.freeze({
+const DEFAULTS = Object.freeze({
   // "ninguno" | "conectado" | "demo"
-  modo: "ninguno",
-  correo: null,
-  nombre: null,
-  velocidadVoz: 1,
-  lecturaAutomatica: true,
-  capturas: [],
+  mode: "none",
+  email: null,
+  name: null,
+  voiceSpeed: 1,
+  autoRead: true,
+  captures: [],
 });
 
-export function cargar() {
+export function load() {
   try {
-    const bruto = localStorage.getItem(CLAVE);
-    return bruto ? { ...POR_DEFECTO, ...JSON.parse(bruto) } : { ...POR_DEFECTO };
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return raw ? { ...DEFAULTS, ...JSON.parse(raw) } : { ...DEFAULTS };
   } catch {
-    return { ...POR_DEFECTO };
+    return { ...DEFAULTS };
   }
 }
 
-export function guardar(estado) {
-  const limpio = { ...estado, capturas: (estado.capturas ?? []).slice(0, LIMITE_CAPTURAS_LOCALES) };
+export function save(state) {
+  const clean = { ...state, captures: (state.captures ?? []).slice(0, LOCAL_CAPTURES_LIMIT) };
   try {
-    localStorage.setItem(CLAVE, JSON.stringify(limpio));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(clean));
   } catch {
     // Sin almacenamiento: la sesión dura solo mientras la app está abierta.
   }
-  return limpio;
+  return clean;
 }
 
-export function actualizar(cambios) {
-  return guardar({ ...cargar(), ...cambios });
+export function update(changes) {
+  return save({ ...load(), ...changes });
 }
 
-export function cerrarSesion() {
-  return actualizar({ modo: "ninguno", correo: null, nombre: null });
+export function logOut() {
+  return update({ mode: "none", email: null, name: null });
 }

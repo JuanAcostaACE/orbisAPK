@@ -1,122 +1,122 @@
 // Arranque y enrutador. Rutas por hash: funcionan igual en navegador y dentro de Capacitor.
-import { cargar, actualizar, cerrarSesion } from "./store.js";
-import { auth, ErrorApi } from "./api.js";
-import { anunciar, anunciarTitulo, enfocarTitulo, estadoConexion } from "./a11y.js";
-import { renderLogin, renderRegistro } from "./pantallas/acceso.js";
-import { renderInicio } from "./pantallas/inicio.js";
-import { renderResultado } from "./pantallas/resultado.js";
-import { renderHistorial } from "./pantallas/historial.js";
-import { renderBaston } from "./pantallas/baston.js";
-import { renderAuxiliar } from "./pantallas/auxiliar.js";
-import { renderAjustes } from "./pantallas/ajustes.js";
+import { load, update, logOut } from "./store.js";
+import { auth, ApiError } from "./api.js";
+import { announce, announceTitle, focusTitle, connectionStatus } from "./a11y.js";
+import { renderLogin, renderRegister } from "./screens/access.js";
+import { renderHome } from "./screens/home.js";
+import { renderResult } from "./screens/result.js";
+import { renderHistory } from "./screens/history.js";
+import { renderCane } from "./screens/cane.js";
+import { renderAssistant } from "./screens/assistant.js";
+import { renderSettings } from "./screens/settings.js";
 
-const PUBLICAS = new Set(["login", "registro"]);
+const PUBLIC_ROUTES = new Set(["login", "register"]);
 
-const RUTAS = {
-  login: { titulo: "Iniciar sesión", render: renderLogin },
-  registro: { titulo: "Crear cuenta", render: renderRegistro },
-  inicio: { titulo: "Inicio", render: renderInicio },
-  resultado: { titulo: "Resultado", render: renderResultado },
-  historial: { titulo: "Historial", render: renderHistorial },
-  baston: { titulo: "Bastón", render: renderBaston },
-  auxiliar: { titulo: "Auxiliar", render: renderAuxiliar },
-  ajustes: { titulo: "Configuración", render: renderAjustes },
+const ROUTES = {
+  login: { title: "Iniciar sesión", render: renderLogin },
+  register: { title: "Crear cuenta", render: renderRegister },
+  home: { title: "Inicio", render: renderHome },
+  result: { title: "Resultado", render: renderResult },
+  history: { title: "Historial", render: renderHistory },
+  cane: { title: "Bastón", render: renderCane },
+  assistant: { title: "Auxiliar", render: renderAssistant },
+  settings: { title: "Configuración", render: renderSettings },
 };
 
-const raiz = document.getElementById("contenido");
-const barra = document.getElementById("barra");
-let limpiezas = [];
-let generacion = 0; // evita pintar una pantalla antigua si el usuario navega deprisa
+const root = document.getElementById("content");
+const navBar = document.getElementById("navbar");
+let cleanups = [];
+let generation = 0; // evita pintar una pantalla antigua si el usuario navega deprisa
 
-function leerRuta() {
-  const partes = (location.hash || "#/").replace(/^#\/?/, "").split("/");
-  return { nombre: partes[0] || "inicio", arg: partes.slice(1).join("/") };
+function readRoute() {
+  const parts = (location.hash || "#/").replace(/^#\/?/, "").split("/");
+  return { name: parts[0] || "home", arg: parts.slice(1).join("/") };
 }
 
-function ir(hash) {
+function go(hash) {
   if (location.hash === hash) {
-    navegar();
+    navigate();
   } else {
     location.hash = hash;
   }
 }
 
-function alSalir(fn) {
-  limpiezas.push(fn);
+function onLeave(fn) {
+  cleanups.push(fn);
 }
 
-function limpiarPantalla() {
-  limpiezas.forEach((fn) => {
+function clearScreen() {
+  cleanups.forEach((fn) => {
     try {
       fn();
     } catch {
       // Una limpieza fallida no debe impedir cambiar de pantalla.
     }
   });
-  limpiezas = [];
+  cleanups = [];
 }
 
-function actualizarNavegacion(estado, nombre) {
-  const visible = estado.modo !== "ninguno";
-  barra.hidden = !visible;
-  barra.querySelectorAll("a").forEach((a) => {
-    if (a.dataset.ruta === nombre) a.setAttribute("aria-current", "page");
+function updateNavigation(state, name) {
+  const visible = state.mode !== "none";
+  navBar.hidden = !visible;
+  navBar.querySelectorAll("a").forEach((a) => {
+    if (a.dataset.route === name) a.setAttribute("aria-current", "page");
     else a.removeAttribute("aria-current");
   });
 }
 
-function textoConexion(estado) {
-  if (estado.modo === "conectado") return "Conectado";
-  if (estado.modo === "demo") return "Demostración";
+function connectionText(state) {
+  if (state.mode === "connected") return "Conectado";
+  if (state.mode === "demo") return "Demostración";
   return "Sin sesión";
 }
 
-async function navegar() {
-  const mi = ++generacion;
-  limpiarPantalla();
-  let estado = cargar();
-  const { nombre, arg } = leerRuta();
+async function navigate() {
+  const mine = ++generation;
+  clearScreen();
+  let state = load();
+  const { name, arg } = readRoute();
 
-  if (estado.modo === "ninguno" && !PUBLICAS.has(nombre)) {
+  if (state.mode === "none" && !PUBLIC_ROUTES.has(name)) {
     location.hash = "#/login";
     return;
   }
-  if (estado.modo !== "ninguno" && (nombre === "login" || nombre === "registro")) {
-    location.hash = "#/inicio";
+  if (state.mode !== "none" && (name === "login" || name === "register")) {
+    location.hash = "#/home";
     return;
   }
 
-  const ruta = RUTAS[nombre] ?? RUTAS.inicio;
-  document.title = `${ruta.titulo} · ORBIS`;
-  actualizarNavegacion(estado, nombre);
-  estadoConexion(textoConexion(estado));
+  const route = ROUTES[name] ?? ROUTES.home;
+  document.title = `${route.title} · ORBIS`;
+  updateNavigation(state, name);
+  connectionStatus(connectionText(state));
 
-  const contexto = { ir, alSalir, estado };
-  ruta.render(raiz, contexto, arg);
-  if (mi !== generacion) return;
-  enfocarTitulo(raiz);
-  anunciarTitulo(ruta.titulo);
+  const context = { go, onLeave, state };
+  route.render(root, context, arg);
+  if (mine !== generation) return;
+  focusTitle(root);
+  announceTitle(route.title);
 }
 
 // Al arrancar, un modo "conectado" se verifica contra el backend. Una sesión caducada vuelve al acceso.
-async function restaurarSesion() {
-  const estado = cargar();
-  if (estado.modo !== "conectado") return;
+async function restoreSession() {
+  const state = load();
+  if (state.mode !== "connected") return;
   try {
-    const yo = await auth.me();
-    actualizar({ correo: yo?.correo ?? estado.correo });
+    const me = await auth.me();
+    update({ email: me?.email ?? state.email });
   } catch (e) {
-    if (e instanceof ErrorApi && e.codigo === "SESION_EXPIRADA") {
-      cerrarSesion();
-      anunciar("Tu sesión ha caducado. Inicia sesión de nuevo.", { urgente: true });
+    if (e instanceof ApiError && e.code === "SESSION_EXPIRED") {
+      logOut();
+      announce("Tu sesión ha caducado. Inicia sesión de nuevo.", { urgent: true });
     }
     // Sin red no se cierra la sesión: la app puede mostrar datos locales.
   }
 }
 
-window.addEventListener("hashchange", navegar);
+window.addEventListener("hashchange", navigate);
 
-restaurarSesion().finally(() => {
-  if (!location.hash) location.hash = "#/inicio";
-  navegar();
+restoreSession().finally(() => {
+  if (!location.hash) location.hash = "#/home";
+  navigate();
 });
