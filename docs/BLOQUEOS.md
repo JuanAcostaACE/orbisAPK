@@ -14,7 +14,7 @@
 ## 2. Estado y datos del bastón (endpoints inexistentes)
 
 - No existe `GET` de la lista de dispositivos ni del estado de conexión del bastón.
-- No existe endpoint que devuelva la **descripción** de una captura: `GET /api/v1/dispositivos/capturas/{id}` solo devuelve el estado.
+- No existe endpoint que devuelva la **descripción** de una captura: `GET /api/v1/devices/captures/{id}` solo devuelve el estado.
 - La app muestra estos datos como "sin datos" y no los simula.
 
 ## 3. Vinculación con auxiliares (endpoints inexistentes)
