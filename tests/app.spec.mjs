@@ -11,14 +11,14 @@ const CORS = {
 // Espía de voz: registra cada utterance y permite comprobar cancelaciones.
 // speechSynthesis es una propiedad de solo lectura en el navegador: se redefine con defineProperty.
 const VOICE_SPY = () => {
-  window.__voz = { spoken: [], cancellations: 0 };
+  window.__voice = { spoken: [], cancellations: 0 };
   class FakeUtterance { constructor(t) { this.text = t; this.lang = ""; this.rate = 1; } }
   window.SpeechSynthesisUtterance = FakeUtterance;
   Object.defineProperty(window, "speechSynthesis", {
     configurable: true,
     value: {
-      speak(u) { window.__voz.spoken.push(u.text); },
-      cancel() { window.__voz.cancellations += 1; },
+      speak(u) { window.__voice.spoken.push(u.text); },
+      cancel() { window.__voice.cancellations += 1; },
     },
   });
 };
@@ -139,9 +139,9 @@ test.describe("modo demostración", () => {
       buffer: Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.alloc(6000, 1), Buffer.from([0xff, 0xd9])]),
     });
     await expect(page.locator(".badge", { hasText: "Descripción lista" })).toBeVisible({ timeout: 10_000 });
-    await expect.poll(() => page.evaluate(() => window.__voz.spoken.length)).toBeGreaterThan(0);
+    await expect.poll(() => page.evaluate(() => window.__voice.spoken.length)).toBeGreaterThan(0);
     await page.getByRole("button", { name: "Detener" }).click();
-    await expect.poll(() => page.evaluate(() => window.__voz.cancellations)).toBeGreaterThan(0);
+    await expect.poll(() => page.evaluate(() => window.__voice.cancellations)).toBeGreaterThan(0);
   });
 
   test("voz: 'Escuchar de nuevo' interrumpe con prioridad alta", async ({ page }) => {
@@ -153,9 +153,9 @@ test.describe("modo demostración", () => {
       buffer: Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.alloc(6000, 1), Buffer.from([0xff, 0xd9])]),
     });
     await expect(page.locator(".badge", { hasText: "Descripción lista" })).toBeVisible({ timeout: 10_000 });
-    const before = await page.evaluate(() => window.__voz.cancellations);
+    const before = await page.evaluate(() => window.__voice.cancellations);
     await page.getByRole("button", { name: "Escuchar la descripción de nuevo" }).click();
-    await expect.poll(() => page.evaluate(() => window.__voz.cancellations)).toBeGreaterThan(before);
+    await expect.poll(() => page.evaluate(() => window.__voice.cancellations)).toBeGreaterThan(before);
   });
 
   test("bastón y auxiliar: sin datos inventados ni controles activos", async ({ page }) => {
