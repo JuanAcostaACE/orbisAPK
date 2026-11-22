@@ -5,6 +5,7 @@
   "scripts": {
     "web": "python -m http.server 8090 --bind 127.0.0.1 --directory www",
     "test": "playwright test",
+    "capturas": "playwright test tests/screenshots.spec.mjs",
     "cap:sync": "cap sync android",
     "cap:open": "cap open android",
     "android:debug": "cap sync android && cd android && gradlew assembleDebug"
