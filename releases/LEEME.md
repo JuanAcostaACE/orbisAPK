@@ -1,6 +1,6 @@
 # ORBIS: APK de depuración
 
-- Archivo: `ORBIS-debug.apk` (4,0 MB)
+- Archivo: [`../apks/ORBIS-debug.apk`](../apks/ORBIS-debug.apk) (4,0 MB)
 - SHA-256: `842be67c534a14016fc3369dee62c8e809dc5fe94161475cfebcd13de6b55a36`
 - Paquete: `com.orbis.app` · versión 1.0 (código 1)
 - Android mínimo: 7.0 (API 24) · objetivo: Android 16 (API 36)
