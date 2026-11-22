@@ -9,3 +9,4 @@ android/local.properties
 *.aab
 .env
 .DS_Store
+Thumbs.db
