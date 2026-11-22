@@ -69,6 +69,12 @@ p { margin: 0 0 12px; }
 .badge.neutral { color: var(--text-muted); }
 .badge.demo { color: var(--warning); }
 
+.code {
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 32px; font-weight: 600; letter-spacing: 0.12em;
+  color: var(--accent); margin: 8px 0 12px; word-break: break-all;
+}
+
 .button {
   display: flex; align-items: center; justify-content: center; gap: 8px;
   width: 100%; min-height: var(--touch-target); padding: 14px 20px; border-radius: var(--radius);
@@ -144,9 +150,4 @@ a { color: var(--accent); text-underline-offset: 3px; }
   *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
 }
 
-.code {
-  font-family: ui-monospace, Consolas, monospace;
-  font-size: 32px; font-weight: 600; letter-spacing: 0.12em;
-  color: var(--accent); margin: 8px 0 12px; word-break: break-all;
-}
 dl { margin: 0 0 12px; }
