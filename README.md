@@ -17,3 +17,12 @@ npm run web
 npm test
 npm run android:debug
 ```
+
+## Project structure
+
+- `www/`: app HTML, stylesheets, and JavaScript modules.
+- `tests/`: Playwright browser and screenshot tests.
+- `android/`: Capacitor Android project.
+- `apks/`: Android package files.
+- `docs/`: project documentation and screenshots.
+- `releases/`: release notes and installation information.
